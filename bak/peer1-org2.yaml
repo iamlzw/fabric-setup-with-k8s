@@ -1,0 +1,167 @@
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  namespace: fabric
+  name:	peer1org2
+  labels:
+    app: hyperledger
+    role: peer
+    peer-id: peer1.org2.example.com
+    org: fabric
+spec:
+  selector:
+    matchLabels:
+        app: hyperledger
+        role: peer
+        peer-id: peer1.org2.example.com
+        org: fabric
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: hyperledger
+        role: peer
+        peer-id: peer1.org2.example.com
+        org: fabric
+    spec:
+        containers:
+        - name: peer1-org2-couchdb
+          image: hyperledger/fabric-couchdb:0.4.15
+          imagePullPolicy: Never
+          resources:
+            limits:
+              cpu: "0.125"
+              memory: "128Mi"
+          ports:
+           - containerPort: 5984
+          env:
+           - name: COUCHDB_USER
+             value: ""
+           - name: COUCHDB_PASSWORD
+             value: ""
+          volumeMounts:
+           - mountPath: /opt/couchdb/data
+             name: peerdata
+             subPath: couchdb.peer1.org2.fabric
+
+        - name: peer1org2
+          image: hyperledger/fabric-peer:1.4.2
+          imagePullPolicy: Never
+          resources:
+            limits:
+              cpu: "0.125"
+              memory: "128Mi"
+          env:
+           - name: CORE_LEDGER_STATE_STATEDATABASE
+             value: "CouchDB"
+           - name: CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS
+             value: "localhost:5984"
+           - name: CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME
+             value: ""
+           - name: CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+             value: ""
+           - name: CORE_VM_ENDPOINT
+             value: "unix:///host/var/run/docker.sock"
+           - name: FABRIC_LOGGING_SPEC
+             value: "INFO"
+           - name: CORE_PEER_TLS_ENABLED
+             value: "true"
+           - name: CORE_PEER_GOSSIP_USELEADERELECTION
+             value: "true"
+           - name: CORE_PEER_GOSSIP_ORGLEADER
+             value: "false"
+           - name: CORE_PEER_PROFILE_ENABLED
+             value: "true"
+           - name: CORE_PEER_TLS_CERT_FILE
+             value: "/etc/hyperledger/fabric/tls/server.crt"
+           - name: CORE_PEER_TLS_KEY_FILE
+             value: "/etc/hyperledger/fabric/tls/server.key"
+           - name: CORE_PEER_TLS_ROOTCERT_FILE
+             value: "/etc/hyperledger/fabric/tls/ca.crt"
+           - name: CORE_PEER_LISTENADDRESS
+             value: "0.0.0.0:10051"
+           - name: CORE_PEER_CHAINCODEADDRESS
+             value: "peer1.org2.example.com:10052"
+           - name: CORE_PEER_CHAINCODELISTENADDRESS
+             value: "0.0.0.0:10052"
+           - name: CORE_PEER_ID
+             value: "peer1.org2.example.com"
+           - name: CORE_PEER_ADDRESS
+             value: "peer1.org2.example.com:10051"
+           - name: CORE_PEER_GOSSIP_EXTERNALENDPOINT
+             value: "peer1.org2.example.com:10051"
+           - name: CORE_PEER_LOCALMSPID
+             value: "Org1MSP"
+          workingDir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+          ports:
+           - containerPort: 10051
+           - containerPort: 10052
+#           - containerPort: 10053
+          command: ["peer"]
+          args: ["node","start"]
+          volumeMounts:
+           - mountPath: /etc/hyperledger/fabric/msp
+             name: certificate
+             subPath: crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/msp
+           - mountPath: /etc/hyperledger/fabric/tls
+             name: certificate
+             subPath: crypto-config/peerOrganizations/org2.example.com/peers/peer1.org2.example.com/tls
+           - mountPath: /var/hyperledger/production
+             name: peerdata
+             subPath: peer1.org2.example.com
+           - mountPath: /host/var/run
+             name: run
+        volumes:
+         - name: certificate
+           persistentVolumeClaim:
+               claimName: fabric-pv
+         - name: peerdata
+           persistentVolumeClaim:
+               claimName: fabric-pvdata
+         - name: run
+           hostPath:
+             path: /var/run
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+   namespace: fabric
+   name: peer1org2
+   labels:
+     app: hyperledger
+     role: peer
+     peer-id: peer1.org2.example.com
+     org: fabric
+spec:
+ selector:
+   app: hyperledger
+   role: peer
+   peer-id: peer1.org2.example.com
+   org: fabric
+ type: NodePort
+ ports:
+   - name: endpoint
+     protocol: TCP
+     port: 10051
+     targetPort: 10051
+#     nodePort: 30051
+   - name: chaincode-listen
+     protocol: TCP
+     port: 10052
+     targetPort: 10052
+   - name: couchdb
+     protocol: TCP
+     port: 5984
+     targetPort: 5984
+#     nodePort: 30052
+#   - name: event-listen
+#     protocol: TCP
+#     port: 10053
+#     targetPort: 10053
+#     nodePort: 30053
+

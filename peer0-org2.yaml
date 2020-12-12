@@ -1,0 +1,122 @@
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  namespace: fabric
+  name:	peer0org2
+  labels:
+    peer-id: peer0.org2.example.com
+spec:
+  selector:
+    matchLabels:
+        peer-id: peer0.org2.example.com
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        peer-id: peer0.org2.example.com
+    spec:
+        containers:
+        - name: peer0org2
+          image: hyperledger/fabric-peer:1.4.2
+          imagePullPolicy: Never
+          resources:
+            limits:
+              cpu: "0.125"
+              memory: "128Mi"
+          env:
+           - name: CORE_VM_ENDPOINT
+             value: "unix:///host/var/run/docker.sock"
+           - name: FABRIC_LOGGING_SPEC
+             value: "INFO"
+           - name: CORE_PEER_TLS_ENABLED
+             value: "true"
+           - name: CORE_PEER_GOSSIP_USELEADERELECTION
+             value: "true"
+           - name: CORE_PEER_GOSSIP_ORGLEADER
+             value: "false"
+           - name: CORE_PEER_PROFILE_ENABLED
+             value: "true"
+           - name: CORE_PEER_TLS_CERT_FILE
+             value: "/etc/hyperledger/fabric/tls/server.crt"
+           - name: CORE_PEER_TLS_KEY_FILE
+             value: "/etc/hyperledger/fabric/tls/server.key"
+           - name: CORE_PEER_TLS_ROOTCERT_FILE
+             value: "/etc/hyperledger/fabric/tls/ca.crt"
+           - name: CORE_PEER_TLS_CLIENTAUTHREQUIRED
+             value: "false"
+           - name: CORE_PEER_TLS_CLIENTROOTCAS_FILES  
+             value: "/etc/hyperledger/fabric/users/Admin@org2.example.com/tls/ca.crt"
+           - name: CORE_PEER_ID
+             value: "peer0org2"
+           - name: CORE_PEER_ADDRESS
+             value: "peer0org2:30021"
+           - name: CORE_PEER_LISTENADDRESS
+             value: 0.0.0.0:30021  
+           - name: CORE_PEER_CHAINCODEADDRESS
+             value: peer0org2:30022  
+           - name: CORE_PEER_CHAINCODELISTENADDRESS
+             value: 0.0.0.0:30022  
+           - name: CORE_PEER_GOSSIP_BOOTSTRAP
+             value: "peer0org2:30021"
+           - name: CORE_PEER_GOSSIP_EXTERNALENDPOINT
+             value: "peer0org2:30021"  
+           - name: CORE_PEER_LOCALMSPID
+             value: "Org2MSP"
+           - name: ORDERER_URL
+             value: orderer:7050
+          workingDir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+          command: ["peer"]
+          args: ["node","start"]
+          volumeMounts:
+           - mountPath: /etc/hyperledger/fabric/msp
+             name: certificate
+             subPath: crypto-config/peerOrganizations/org2.example.com/peers/peer0org2/msp
+           - mountPath: /etc/hyperledger/fabric/tls
+             name: certificate
+             subPath: crypto-config/peerOrganizations/org2.example.com/peers/peer0org2/tls
+           - mountPath: /etc/hyperledger/fabric/users
+             name: certificate
+             subPath: crypto-config/peerOrganizations/org2.example.com/users  
+           - mountPath: /var/hyperledger/production
+             name: peerdata
+             subPath: peer0.org2.example.com
+           - mountPath: /host/var/run
+             name: run
+        volumes:
+         - name: certificate
+           persistentVolumeClaim:
+               claimName: fabric-pv
+         - name: peerdata
+           persistentVolumeClaim:
+               claimName: fabric-pvdata
+         - name: run
+           hostPath:
+             path: /var/run
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+   namespace: fabric
+   name: peer0org2
+   labels:
+     peer-id: peer0.org2.example.com
+spec:
+ selector:
+   peer-id: peer0.org2.example.com
+ type: NodePort
+ ports:
+   - name: endpoint
+     protocol: TCP
+     port: 30021
+     targetPort: 30021
+     nodePort: 30021
+   - name: event
+     protocol: TCP
+     port: 30022
+     targetPort: 30022
+     nodePort: 30022
